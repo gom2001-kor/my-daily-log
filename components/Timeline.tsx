@@ -51,7 +51,10 @@ export default function Timeline() {
                                 onClick={() => setSelectedEntry(entry)}
                             >
                                 <div className="flex justify-between items-start mb-2">
-                                    <time className="text-sm font-medium text-primary/80">{entry.date}</time>
+                                    <time className="text-sm font-medium text-primary/80">
+                                        {entry.date}
+                                        {entry.time && <span className="opacity-60"> • {entry.time}</span>}
+                                    </time>
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
