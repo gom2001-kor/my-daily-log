@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Calendar, MapPin, Image as ImageIcon } from "lucide-react";
+import { X, Calendar, MapPin, Image as ImageIcon, Loader2 } from "lucide-react";
 import { useDiary } from "@/context/DiaryContext";
+import { supabase } from "@/lib/supabaseClient";
 
 interface WriteModalProps {
     isOpen: boolean;
@@ -16,12 +17,17 @@ export default function WriteModal({ isOpen, onClose }: WriteModalProps) {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [content, setContent] = useState("");
     const [location, setLocation] = useState("");
-    const [photos, setPhotos] = useState<string[]>([]);
+    const [photos, setPhotos] = useState<string[]>([]); // Previews
+    const [files, setFiles] = useState<File[]>([]); // Actual files to upload
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
-        if (files) {
-            Array.from(files).forEach(file => {
+        const selectedFiles = e.target.files;
+        if (selectedFiles) {
+            const newFiles = Array.from(selectedFiles);
+            setFiles(prev => [...prev, ...newFiles]);
+
+            newFiles.forEach(file => {
                 const reader = new FileReader();
                 reader.onloadend = () => {
                     setPhotos(prev => [...prev, reader.result as string]);
@@ -31,27 +37,67 @@ export default function WriteModal({ isOpen, onClose }: WriteModalProps) {
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const removePhoto = (index: number) => {
+        setPhotos(prev => prev.filter((_, i) => i !== index));
+        setFiles(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!content.trim() || !title.trim()) return;
+        if (!content.trim() || !title.trim() || isSubmitting) return;
 
-        const now = new Date();
-        addEntry({
-            title,
-            date,
-            time: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-            content,
-            location,
-            photos,
-        });
+        setIsSubmitting(true);
 
-        // Reset and close
-        setTitle("");
-        setDate(new Date().toISOString().split('T')[0]);
-        setContent("");
-        setLocation("");
-        setPhotos([]);
-        onClose();
+        try {
+            const uploadedPhotoUrls: string[] = [];
+
+            // Upload images to Supabase Storage
+            for (const file of files) {
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${Math.random()}.${fileExt}`;
+                const filePath = `${fileName}`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from('images')
+                    .upload(filePath, file);
+
+                if (uploadError) {
+                    console.error('Error uploading image:', uploadError);
+                    continue; // Skip failed uploads or handle error appropriately
+                }
+
+                const { data } = supabase.storage
+                    .from('images')
+                    .getPublicUrl(filePath);
+
+                if (data) {
+                    uploadedPhotoUrls.push(data.publicUrl);
+                }
+            }
+
+            const now = new Date();
+            await addEntry({
+                title,
+                date,
+                time: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+                content,
+                location,
+                photos: uploadedPhotoUrls,
+            });
+
+            // Reset and close
+            setTitle("");
+            setDate(new Date().toISOString().split('T')[0]);
+            setContent("");
+            setLocation("");
+            setPhotos([]);
+            setFiles([]);
+            onClose();
+        } catch (error) {
+            console.error("Error submitting entry:", error);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -176,7 +222,7 @@ export default function WriteModal({ isOpen, onClose }: WriteModalProps) {
                                                     <img src={photo} alt={`Upload ${index}`} className="w-full h-full object-cover" />
                                                     <button
                                                         type="button"
-                                                        onClick={() => setPhotos(photos.filter((_, i) => i !== index))}
+                                                        onClick={() => removePhoto(index)}
                                                         className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                                                     >
                                                         <X className="w-4 h-4 text-white" />
@@ -190,9 +236,17 @@ export default function WriteModal({ isOpen, onClose }: WriteModalProps) {
                                 <div className="flex justify-end pt-4">
                                     <button
                                         type="submit"
-                                        className="px-8 py-3 bg-primary text-background rounded-full font-medium hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+                                        disabled={isSubmitting}
+                                        className="px-8 py-3 bg-primary text-background rounded-full font-medium hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                                     >
-                                        기록하기
+                                        {isSubmitting ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                저장 중...
+                                            </>
+                                        ) : (
+                                            "기록하기"
+                                        )}
                                     </button>
                                 </div>
                             </form>

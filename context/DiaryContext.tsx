@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 export interface DiaryEntry {
     id: string;
@@ -14,8 +15,8 @@ export interface DiaryEntry {
 
 interface DiaryContextType {
     entries: DiaryEntry[];
-    addEntry: (entry: Omit<DiaryEntry, "id">) => void;
-    deleteEntry: (id: string) => void;
+    addEntry: (entry: Omit<DiaryEntry, "id">) => Promise<void>;
+    deleteEntry: (id: string) => Promise<void>;
 }
 
 const DiaryContext = createContext<DiaryContextType | undefined>(undefined);
@@ -23,72 +24,106 @@ const DiaryContext = createContext<DiaryContextType | undefined>(undefined);
 export function DiaryProvider({ children }: { children: React.ReactNode }) {
     const [entries, setEntries] = useState<DiaryEntry[]>([]);
 
-    // Load from localStorage on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => {
-        const saved = localStorage.getItem("diary-entries");
-        if (saved) {
-            try {
-                setEntries(JSON.parse(saved));
-            } catch (e) {
-                console.error("Failed to parse diary entries", e);
-            }
+    const fetchEntries = async () => {
+        const { data, error } = await supabase
+            .from('posts')
+            .select('*')
+            .order('date', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching entries:', error);
         } else {
-            // Initialize with some mock data if empty for demo purposes
-            const mockData: DiaryEntry[] = [
-                {
-                    id: "1",
-                    title: "여유로운 아침",
-                    date: "2023-11-23",
-                    time: "10:30 AM",
-                    location: "카페 블루",
-                    content: "따뜻한 커피 한 잔과 좋아하는 책으로 시작하는 아침. 창가로 들어오는 햇살이 참 좋았다.",
-                    photos: ["https://images.unsplash.com/photo-1516483638261-f4dbaf036963?q=80&w=600&auto=format&fit=crop"]
-                },
-                {
-                    id: "2",
-                    title: "한강 산책",
-                    date: "2023-11-22",
-                    time: "06:15 PM",
-                    location: "한강공원",
-                    content: "해질 무렵의 한강은 언제나 아름답다. 선선한 바람을 맞으며 걷다 보니 복잡했던 마음이 정리되는 기분이다.",
-                    photos: [
-                        "https://images.unsplash.com/photo-1513622470522-26c3c8a854bc?q=80&w=600&auto=format&fit=crop",
-                        "https://images.unsplash.com/photo-1470240731273-7821a6eeb6bd?q=80&w=600&auto=format&fit=crop"
-                    ]
-                },
-                {
-                    id: "3",
-                    title: "비 오는 날",
-                    date: "2023-11-20",
-                    time: "02:00 PM",
-                    location: "집",
-                    content: "창밖으로 들리는 빗소리가 좋아서 하루 종일 집에서 뒹굴거렸다. 가끔은 이런 게으름도 필요해.",
-                    photos: ["https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?q=80&w=600&auto=format&fit=crop"]
-                }
-            ];
-            setEntries(mockData);
-            localStorage.setItem("diary-entries", JSON.stringify(mockData));
-        }
-    }, []);
+            // Map Supabase data to DiaryEntry format if needed
+            // Assuming Supabase columns match DiaryEntry fields exactly or close enough
+            // We might need to handle 'photos' if it's stored differently (e.g. JSON or array)
+            // For now assuming 'photos' is a text array or JSON in Supabase
+            // And 'image_url' from user request might be mapped to photos[0] or similar?
+            // User request said: "Save that URL into the `image_url` column".
+            // So the table likely has `image_url` (text) instead of `photos` (array).
+            // Let's adapt to that.
 
-    // Save to localStorage whenever entries change
-    useEffect(() => {
-        if (entries.length > 0) {
-            localStorage.setItem("diary-entries", JSON.stringify(entries));
-        }
-    }, [entries]);
+            const formattedData = data?.map(post => ({
+                id: post.id,
+                title: post.title,
+                date: post.date,
+                time: post.time,
+                content: post.content,
+                location: post.location,
+                photos: post.image_url ? [post.image_url] : [] // Map image_url to photos array for UI compatibility
+            })) || [];
 
-    const addEntry = (newEntry: Omit<DiaryEntry, "id">) => {
-        const entry: DiaryEntry = {
-            ...newEntry,
-            id: crypto.randomUUID(),
-        };
-        setEntries((prev) => [entry, ...prev]);
+            setEntries(formattedData);
+        }
     };
 
-    const deleteEntry = (id: string) => {
-        setEntries((prev) => prev.filter((entry) => entry.id !== id));
+    useEffect(() => {
+        fetchEntries();
+    }, []);
+
+    const addEntry = async (newEntry: Omit<DiaryEntry, "id">) => {
+        // We will handle the actual DB insertion here.
+        // Note: WriteModal will handle image upload and pass the URL in 'photos' or we need to change the interface.
+        // The user said: "Modify the "Write Modal" to INSERT new data...".
+        // But usually Context handles the logic.
+        // Let's keep addEntry as the interface to add data.
+        // If WriteModal does the insert directly, then addEntry might just be for local state update?
+        // User request: "Modify the "Write Modal" to INSERT new data into the `posts` table when I click Save."
+        // This implies WriteModal might do the heavy lifting or call a context function that does it.
+        // I will implement `addEntry` to do the Supabase insert for cleaner separation, 
+        // or if WriteModal does it, `addEntry` could just refresh the list.
+
+        // Let's stick to Context doing the data manipulation to keep UI clean.
+        // But wait, WriteModal needs to upload image first.
+
+        // Let's assume addEntry takes the fully prepared data (including image URL if any).
+        // The `photos` array in `newEntry` will contain the URL if uploaded.
+
+        const imageUrl = newEntry.photos.length > 0 ? newEntry.photos[0] : null;
+
+        const { data, error } = await supabase
+            .from('posts')
+            .insert([
+                {
+                    title: newEntry.title,
+                    date: newEntry.date,
+                    time: newEntry.time,
+                    content: newEntry.content,
+                    location: newEntry.location,
+                    image_url: imageUrl
+                }
+            ])
+            .select();
+
+        if (error) {
+            console.error('Error adding entry:', error);
+        } else {
+            if (data) {
+                const insertedPost = data[0];
+                const newDiaryEntry: DiaryEntry = {
+                    id: insertedPost.id,
+                    title: insertedPost.title,
+                    date: insertedPost.date,
+                    time: insertedPost.time,
+                    content: insertedPost.content,
+                    location: insertedPost.location,
+                    photos: insertedPost.image_url ? [insertedPost.image_url] : []
+                };
+                setEntries((prev) => [newDiaryEntry, ...prev]);
+            }
+        }
+    };
+
+    const deleteEntry = async (id: string) => {
+        const { error } = await supabase
+            .from('posts')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            console.error('Error deleting entry:', error);
+        } else {
+            setEntries((prev) => prev.filter((entry) => entry.id !== id));
+        }
     };
 
     return (
