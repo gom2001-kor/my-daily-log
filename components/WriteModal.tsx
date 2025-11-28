@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Calendar, MapPin, Image as ImageIcon, Loader2 } from "lucide-react";
 import { useDiary, DiaryEntry } from "@/context/DiaryContext";
@@ -29,6 +29,26 @@ export default function WriteModal({ isOpen, onClose, initialData }: WriteModalP
     const [photos, setPhotos] = useState<string[]>(initialData?.photos || []); // Previews
     const [files, setFiles] = useState<File[]>([]); // Actual files to upload
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (isOpen) {
+            if (initialData) {
+                setTitle(initialData.title);
+                setDate(initialData.date);
+                setContent(initialData.content);
+                setLocation(initialData.location || "");
+                setPhotos(initialData.photos || []);
+            } else {
+                // Reset for new entry
+                setTitle("");
+                setDate(getLocalDateString());
+                setContent("");
+                setLocation("");
+                setPhotos([]);
+                setFiles([]);
+            }
+        }
+    }, [initialData, isOpen]);
 
     const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFiles = e.target.files;
