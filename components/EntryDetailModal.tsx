@@ -1,16 +1,17 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Calendar, MapPin, Clock } from "lucide-react";
+import { X, Calendar, MapPin, Clock, Pencil } from "lucide-react";
 import { DiaryEntry } from "@/context/DiaryContext";
 
 interface EntryDetailModalProps {
     isOpen: boolean;
     onClose: () => void;
     entry: DiaryEntry | null;
+    onEdit: () => void;
 }
 
-export default function EntryDetailModal({ isOpen, onClose, entry }: EntryDetailModalProps) {
+export default function EntryDetailModal({ isOpen, onClose, entry, onEdit }: EntryDetailModalProps) {
     if (!entry) return null;
 
     return (
@@ -45,6 +46,17 @@ export default function EntryDetailModal({ isOpen, onClose, entry }: EntryDetail
                                     />
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
                                     <button
+                                        onClick={() => {
+                                            onEdit();
+                                            // onClose(); // Optional: close detail on edit? User didn't specify, but usually better UX to keep it or close it.
+                                            // If I close it, I lose context. If I keep it, I need to ensure it updates.
+                                            // I'll keep it open.
+                                        }}
+                                        className="absolute top-4 right-16 p-2 bg-black/20 hover:bg-black/40 backdrop-blur-md rounded-full text-white transition-colors pointer-events-auto"
+                                    >
+                                        <Pencil className="w-6 h-6" />
+                                    </button>
+                                    <button
                                         onClick={onClose}
                                         className="absolute top-4 right-4 p-2 bg-black/20 hover:bg-black/40 backdrop-blur-md rounded-full text-white transition-colors pointer-events-auto"
                                     >
@@ -57,7 +69,13 @@ export default function EntryDetailModal({ isOpen, onClose, entry }: EntryDetail
                             <div className="p-8 flex-1 overflow-y-auto">
                                 {/* Header (if no image) */}
                                 {(!entry.photos || entry.photos.length === 0) && (
-                                    <div className="flex justify-end mb-4">
+                                    <div className="flex justify-end mb-4 gap-2">
+                                        <button
+                                            onClick={onEdit}
+                                            className="p-2 hover:bg-muted rounded-full transition-colors text-secondary"
+                                        >
+                                            <Pencil className="w-6 h-6" />
+                                        </button>
                                         <button
                                             onClick={onClose}
                                             className="p-2 hover:bg-muted rounded-full transition-colors text-secondary"

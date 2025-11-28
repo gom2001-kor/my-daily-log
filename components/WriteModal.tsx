@@ -3,21 +3,30 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Calendar, MapPin, Image as ImageIcon, Loader2 } from "lucide-react";
-import { useDiary } from "@/context/DiaryContext";
+import { useDiary, DiaryEntry } from "@/context/DiaryContext";
 import { supabase } from "@/lib/supabaseClient";
 
 interface WriteModalProps {
     isOpen: boolean;
     onClose: () => void;
+    initialData?: DiaryEntry | null;
 }
 
-export default function WriteModal({ isOpen, onClose }: WriteModalProps) {
-    const { addEntry } = useDiary();
-    const [title, setTitle] = useState("");
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-    const [content, setContent] = useState("");
-    const [location, setLocation] = useState("");
-    const [photos, setPhotos] = useState<string[]>([]); // Previews
+const getLocalDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+export default function WriteModal({ isOpen, onClose, initialData }: WriteModalProps) {
+    const { addEntry, updateEntry } = useDiary();
+    const [title, setTitle] = useState(initialData?.title || "");
+    const [date, setDate] = useState(initialData?.date || getLocalDateString());
+    const [content, setContent] = useState(initialData?.content || "");
+    const [location, setLocation] = useState(initialData?.location || "");
+    const [photos, setPhotos] = useState<string[]>(initialData?.photos || []); // Previews
     const [files, setFiles] = useState<File[]>([]); // Actual files to upload
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -75,19 +84,33 @@ export default function WriteModal({ isOpen, onClose }: WriteModalProps) {
                 }
             }
 
-            const now = new Date();
-            await addEntry({
-                title,
-                date,
-                time: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-                content,
-                location,
-                photos: uploadedPhotoUrls,
-            });
+            const existingPhotos = photos.filter(p => p.startsWith('http'));
+            const finalPhotos = [...existingPhotos, ...uploadedPhotoUrls];
+
+            if (initialData) {
+                await updateEntry(initialData.id, {
+                    title,
+                    date,
+                    time: initialData.time,
+                    content,
+                    location,
+                    photos: finalPhotos,
+                });
+            } else {
+                const now = new Date();
+                await addEntry({
+                    title,
+                    date,
+                    time: now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+                    content,
+                    location,
+                    photos: finalPhotos,
+                });
+            }
 
             // Reset and close
             setTitle("");
-            setDate(new Date().toISOString().split('T')[0]);
+            setDate(getLocalDateString());
             setContent("");
             setLocation("");
             setPhotos([]);
@@ -122,7 +145,7 @@ export default function WriteModal({ isOpen, onClose }: WriteModalProps) {
                     >
                         <div className="bg-background w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden pointer-events-auto border border-accent/20 max-h-[90vh] overflow-y-auto">
                             <div className="p-6 border-b border-accent/10 flex items-center justify-between sticky top-0 bg-background z-10">
-                                <h2 className="text-xl font-light text-primary">새로운 기록</h2>
+                                <h2 className="text-xl font-light text-primary">{initialData ? "기록 수정" : "새로운 기록"}</h2>
                                 <button
                                     onClick={onClose}
                                     className="p-2 hover:bg-muted rounded-full transition-colors text-secondary"
@@ -245,7 +268,7 @@ export default function WriteModal({ isOpen, onClose }: WriteModalProps) {
                                                 저장 중...
                                             </>
                                         ) : (
-                                            "기록하기"
+                                            initialData ? "수정하기" : "기록하기"
                                         )}
                                     </button>
                                 </div>

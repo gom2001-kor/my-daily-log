@@ -16,6 +16,7 @@ export interface DiaryEntry {
 interface DiaryContextType {
     entries: DiaryEntry[];
     addEntry: (entry: Omit<DiaryEntry, "id">) => Promise<void>;
+    updateEntry: (id: string, entry: Partial<DiaryEntry>) => Promise<void>;
     deleteEntry: (id: string) => Promise<void>;
 }
 
@@ -103,6 +104,62 @@ export function DiaryProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    const updateEntry = async (id: string, updatedEntry: Partial<DiaryEntry>) => {
+        const imageUrl = updatedEntry.photos && updatedEntry.photos.length > 0 ? updatedEntry.photos[0] : null;
+
+        const updateData: any = {
+            title: updatedEntry.title,
+            date: updatedEntry.date,
+            time: updatedEntry.time,
+            content: updatedEntry.content,
+            location: updatedEntry.location,
+        };
+
+        if (imageUrl !== undefined) {
+            updateData.image_url = imageUrl;
+        }
+
+        const { data, error } = await supabase
+            .from('posts')
+            .update(updateData)
+            .eq('id', id)
+            .select();
+
+        if (error) {
+            console.error('Error updating entry:', error);
+        } else {
+            if (data) {
+                const updatedPost = data[0];
+                const updatedDiaryEntry: DiaryEntry = {
+                    id: updatedPost.id,
+                    title: updatedPost.title,
+                    date: updatedPost.date,
+                    time: updatedPost.time,
+                    content: updatedPost.content,
+                    location: updatedPost.location,
+                    photos: updatedPost.image_url ? [updatedPost.image_url] : []
+                };
+
+                setEntries((prev) => {
+                    const filtered = prev.filter(e => e.id !== id);
+                    const updated = [updatedDiaryEntry, ...filtered];
+                    return updated.sort((a, b) => {
+                        const dateA = new Date(a.date).getTime();
+                        const dateB = new Date(b.date).getTime();
+                        if (dateA !== dateB) {
+                            return dateB - dateA; // Descending date
+                        }
+                        // Secondary sort by time if available
+                        if (a.time && b.time) {
+                            return b.time.localeCompare(a.time);
+                        }
+                        return 0;
+                    });
+                });
+            }
+        }
+    };
+
     const deleteEntry = async (id: string) => {
         const { error } = await supabase
             .from('posts')
@@ -117,7 +174,7 @@ export function DiaryProvider({ children }: { children: React.ReactNode }) {
     };
 
     return (
-        <DiaryContext.Provider value={{ entries, addEntry, deleteEntry }}>
+        <DiaryContext.Provider value={{ entries, addEntry, updateEntry, deleteEntry }}>
             {children}
         </DiaryContext.Provider>
     );

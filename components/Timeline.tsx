@@ -2,13 +2,17 @@
 
 import { motion } from "framer-motion";
 import { useDiary, DiaryEntry } from "@/context/DiaryContext";
-import { Trash2 } from "lucide-react";
+import { Trash2, Pencil } from "lucide-react";
 import { useState } from "react";
 import EntryDetailModal from "./EntryDetailModal";
+import WriteModal from "./WriteModal";
 
 export default function Timeline() {
     const { entries, deleteEntry } = useDiary();
-    const [selectedEntry, setSelectedEntry] = useState<DiaryEntry | null>(null);
+    const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+    const [editingEntry, setEditingEntry] = useState<DiaryEntry | null>(null);
+
+    const selectedEntry = entries.find(e => e.id === selectedEntryId) || null;
 
     if (entries.length === 0) {
         return (
@@ -48,48 +52,69 @@ export default function Timeline() {
                             <motion.div
                                 whileHover={{ scale: 1.02 }}
                                 className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white/50 backdrop-blur-sm p-6 rounded-2xl border border-accent/10 shadow-sm hover:shadow-md transition-all cursor-pointer relative group/card"
-                                onClick={() => setSelectedEntry(entry)}
+                                onClick={() => setSelectedEntryId(entry.id)}
                             >
                                 <div className="flex justify-between items-start mb-2">
                                     <time className="text-sm font-medium text-primary/80">
                                         {entry.date}
                                         {entry.time && <span className="opacity-60"> • {entry.time}</span>}
                                     </time>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (confirm('정말 삭제하시겠습니까?')) deleteEntry(entry.id);
-                                        }}
-                                        className="text-secondary/40 hover:text-red-500 transition-colors p-1 opacity-0 group-hover/card:opacity-100"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex items-center">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setEditingEntry(entry);
+                                            }}
+                                            className="text-secondary/40 hover:text-primary transition-colors p-1 opacity-0 group-hover/card:opacity-100 mr-1"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (confirm('정말 삭제하시겠습니까?')) deleteEntry(entry.id);
+                                            }}
+                                            className="text-secondary/40 hover:text-red-500 transition-colors p-1 opacity-0 group-hover/card:opacity-100"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
                                 <h3 className="text-lg font-medium text-primary mb-2">{entry.title}</h3>
                                 <p className="text-secondary line-clamp-3 leading-relaxed text-sm">
                                     {entry.content}
                                 </p>
-                                {entry.photos && entry.photos.length > 0 && (
-                                    <div className="mt-4 rounded-lg overflow-hidden h-32 w-full relative">
-                                        <img src={entry.photos[0]} alt="" className="w-full h-full object-cover" />
-                                        {entry.photos.length > 1 && (
-                                            <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
-                                                +{entry.photos.length - 1}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                {
+                                    entry.photos && entry.photos.length > 0 && (
+                                        <div className="mt-4 rounded-lg overflow-hidden h-32 w-full relative">
+                                            <img src={entry.photos[0]} alt="" className="w-full h-full object-cover" />
+                                            {entry.photos.length > 1 && (
+                                                <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
+                                                    +{entry.photos.length - 1}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )
+                                }
                             </motion.div>
                         </div>
-                    ))}
-                </div>
-            </motion.div>
+                    ))
+                    }
+                </div >
+            </motion.div >
 
             <EntryDetailModal
                 isOpen={!!selectedEntry}
-                onClose={() => setSelectedEntry(null)}
+                onClose={() => setSelectedEntryId(null)}
                 entry={selectedEntry}
+                onEdit={() => setEditingEntry(selectedEntry)}
             />
-        </section>
+
+            <WriteModal
+                isOpen={!!editingEntry}
+                onClose={() => setEditingEntry(null)}
+                initialData={editingEntry}
+            />
+        </section >
     );
 }
